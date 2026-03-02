@@ -1,0 +1,25 @@
+{
+  "name": "leadsbyme-dev",
+  "version": "1.0.0",
+  "description": "Google Maps lead scraper — keyword + location → validated emails → Google Sheets",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "axios-retry": "^4.4.1",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "googleapis": "^140.0.1",
+    "p-limit": "^3.1.0",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
