@@ -1,5 +1,4 @@
 import type { NextAuthConfig } from 'next-auth';
-import GoogleProvider from 'next-auth/providers/google';
 
 // Edge-compatible auth config (no bcryptjs) — used by middleware
 export const authConfig: NextAuthConfig = {
@@ -8,12 +7,7 @@ export const authConfig: NextAuthConfig = {
     signIn: '/login',
     error: '/login',
   },
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
+  providers: [],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
