@@ -1,0 +1,115 @@
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+const POLL_INTERVAL_MS = 2000;
+const HEARTBEAT_INTERVAL_MS = 30000;
+
+// GET /api/searches/:id/progress — SSE stream of search progress
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Verify ownership
+  const search = await prisma.search.findFirst({
+    where: { id: params.id, userId: session.user.id },
+    select: { id: true },
+  });
+
+  if (!search) {
+    return new Response('Not found', { status: 404 });
+  }
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+      const send = (data: object) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          // Controller already closed
+        }
+      };
+
+      const sendHeartbeat = () => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(': ping\n\n'));
+        } catch {
+          // Controller already closed
+        }
+      };
+
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        try {
+          controller.close();
+        } catch {
+          // Already closed
+        }
+      };
+
+      // Start 30s heartbeat to prevent Railway nginx 60s idle timeout
+      heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+
+      // Poll DB every 2s
+      while (!closed) {
+        try {
+          const current = await prisma.search.findUnique({
+            where: { id: params.id },
+            select: {
+              status: true,
+              currentPhase: true,
+              phaseDetail: true,
+              errorMessage: true,
+            },
+          });
+
+          if (!current) {
+            close();
+            break;
+          }
+
+          send({
+            status: current.status,
+            currentPhase: current.currentPhase,
+            phaseDetail: current.phaseDetail,
+            errorMessage: current.errorMessage,
+          });
+
+          if (current.status === 'DONE' || current.status === 'FAILED') {
+            close();
+            break;
+          }
+        } catch (err) {
+          console.error('SSE poll error:', err);
+          close();
+          break;
+        }
+
+        // Wait before next poll
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}

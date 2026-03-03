@@ -1,5 +1,19 @@
+# Environment
 .env
+.env.local
+.env*.local
 service-account.json
+
+# Dependencies
 node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Legacy output
 logs/
 results.json
