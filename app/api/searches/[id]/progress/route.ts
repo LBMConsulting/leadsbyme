@@ -25,14 +25,14 @@ export async function GET(
   }
 
   const encoder = new TextEncoder();
+  const { signal } = request;
+
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
-      let closed = false;
-      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-
       const send = (data: object) => {
-        if (closed) return;
+        if (signal.aborted) return;
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         } catch {
@@ -41,7 +41,7 @@ export async function GET(
       };
 
       const sendHeartbeat = () => {
-        if (closed) return;
+        if (signal.aborted) return;
         try {
           controller.enqueue(encoder.encode(': ping\n\n'));
         } catch {
@@ -50,8 +50,6 @@ export async function GET(
       };
 
       const close = () => {
-        if (closed) return;
-        closed = true;
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         try {
           controller.close();
@@ -63,8 +61,8 @@ export async function GET(
       // Start 30s heartbeat to prevent Railway nginx 60s idle timeout
       heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
-      // Poll DB every 2s
-      while (!closed) {
+      // Poll DB every 2s until done, failed, or client disconnects
+      while (!signal.aborted) {
         try {
           const current = await prisma.search.findUnique({
             where: { id: params.id },
@@ -98,9 +96,14 @@ export async function GET(
           break;
         }
 
-        // Wait before next poll
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        // Wait before next poll, but stop early if client disconnects
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, POLL_INTERVAL_MS);
+          signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+        });
       }
+
+      if (signal.aborted && heartbeatTimer) clearInterval(heartbeatTimer);
     },
   });
 
