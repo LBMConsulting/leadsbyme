@@ -18,6 +18,20 @@ npm run db:studio    # Open Prisma Studio GUI
 
 No lint or test scripts are configured.
 
+## Git workflow
+
+Commit and push to GitHub after every meaningful unit of work — a working feature, a bug fix, a config change. Never leave significant work uncommitted.
+
+```bash
+git add <files>
+git commit -m "Short imperative summary
+
+Optional body explaining why, not what."
+git push origin master
+```
+
+Commit message rules: imperative mood ("Add X", "Fix Y", "Remove Z"), under 72 chars on the first line. Group related changes into one commit rather than committing file by file. The remote is `https://github.com/LBMConsulting/leadsbyme` — `gh` is configured as the credential helper so push works without a password.
+
 ## Architecture
 
 **LeadsByMe** is a Next.js 14 SaaS app that finds B2B leads from Google Maps. Two independent processes run on Railway:
